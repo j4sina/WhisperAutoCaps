@@ -36,8 +36,8 @@
                     <Menu>WhisperAuto</Menu>
                     <Geometry>
                         <Size>
-                            <Height>400</Height>
-                            <Width>300</Width>
+                            <Height>600</Height>
+                            <Width>400</Width>
                         </Size>
                         <MinSize>
                             <Height>250</Height>

@@ -17,8 +17,8 @@ var browsePresetBtn = document.getElementById('browsePresetBtn');
 // Bundled preset path – resolves automatically so the user never has to pick it
 var bundledPresetPath = path.join(extensionPath, 'whisper-preset.epr');
 
-// File-based color persistence (use __dirname for reliable Node.js path)
-var colorFilePath = path.resolve(__dirname, '..', 'last_used_color.json');
+// File-based color persistence – directly in the extension folder
+var colorFilePath = path.join(extensionPath, 'last_used_color.json');
 
 console.log('[WhisperAuto] colorFilePath: ' + colorFilePath);
 console.log('[WhisperAuto] colorFile exists: ' + fs.existsSync(colorFilePath));
@@ -37,17 +37,21 @@ var colorHex = document.getElementById('colorHex');
 
 // Setup
 window.onload = function () {
-    loadSettings();
-
-    // Auto-fill preset path with bundled preset (user never needs to touch this)
-    if (!presetPathInput.value || !fs.existsSync(presetPathInput.value)) {
+    // Auto-fill preset path with bundled preset if needed (without triggering saveSettings prematurely)
+    var savedPreset = localStorage.getItem('whisperauto_preset');
+    if (!savedPreset || !fs.existsSync(savedPreset)) {
         presetPathInput.value = bundledPresetPath;
-        saveSettings();
+        localStorage.setItem('whisperauto_preset', bundledPresetPath);
+    } else {
+        presetPathInput.value = savedPreset;
     }
 
     // Hide the preset picker section – it's no longer needed
     var presetGroup = presetPathInput.closest('.input-group');
     if (presetGroup) presetGroup.style.display = 'none';
+
+    // Load remaining settings and saved color
+    loadSettings();
 
     // Color picker sync + save to file on every change
     highlightColor.addEventListener('input', function () {
