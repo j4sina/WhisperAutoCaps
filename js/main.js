@@ -32,7 +32,7 @@ var highlightColor = document.getElementById('highlightColor');
 var colorHex = document.getElementById('colorHex');
 
 // Setup
-window.onload = function() {
+window.onload = function () {
     loadSettings();
 
     // Auto-fill preset path with bundled preset (user never needs to touch this)
@@ -44,9 +44,9 @@ window.onload = function() {
     // Hide the preset picker section – it's no longer needed
     var presetGroup = presetPathInput.closest('.input-group');
     if (presetGroup) presetGroup.style.display = 'none';
-    
+
     // Color picker sync + save to file on every change
-    highlightColor.addEventListener('input', function() {
+    highlightColor.addEventListener('input', function () {
         colorHex.innerText = highlightColor.value;
         saveColorToFile(highlightColor.value);
     });
@@ -84,13 +84,13 @@ function loadSettings() {
     if (savedPreset) {
         presetPathInput.value = savedPreset;
     }
-    
+
     var savedMaxWords = localStorage.getItem('whisperauto_maxwords');
     if (savedMaxWords) maxWordsInput.value = savedMaxWords;
-    
+
     var savedHighlight = localStorage.getItem('whisperauto_highlight');
     if (savedHighlight !== null) highlightCheckbox.checked = savedHighlight === 'true';
-    
+
     // Color: prefer file-based persistence, then localStorage fallback
     var fileColor = loadColorFromFile();
     if (!fileColor) {
@@ -115,7 +115,7 @@ function setStatus(text, progressPercent, isPulse) {
     statusContainer.classList.remove('hidden');
     errorContainer.classList.add('hidden');
     statusText.innerText = text;
-    
+
     if (isPulse) {
         progressBar.classList.add('pulse');
         progressBar.style.width = '100%';
@@ -129,14 +129,14 @@ function setError(text) {
     statusContainer.classList.add('hidden');
     errorContainer.classList.remove('hidden');
     errorText.innerText = text;
-    
+
     // Reset button
     transcribeBtn.classList.remove('loading');
     transcribeBtn.disabled = false;
 }
 
 // Actions
-browsePresetBtn.addEventListener('click', function() {
+browsePresetBtn.addEventListener('click', function () {
     var result = window.cep.fs.showOpenDialog(
         false, // allow multiple
         false, // choose directory
@@ -144,50 +144,59 @@ browsePresetBtn.addEventListener('click', function() {
         "", // initial path
         ["epr"] // file types
     );
-    
+
     if (result.data && result.data.length > 0) {
         presetPathInput.value = result.data[0];
         saveSettings();
     }
 });
 
-transcribeBtn.addEventListener('click', function() {
+transcribeBtn.addEventListener('click', function () {
     // Always prefer the bundled preset; fall back to user-selected path
     var presetPath = (fs.existsSync(bundledPresetPath)) ? bundledPresetPath : presetPathInput.value;
-    
+
     if (!presetPath) {
         setError("Preset file not found. Reinstall the extension.");
         return;
     }
 
-    // Convert path to ExtendScript format (forward slashes)
-    var jsxPresetPath = presetPath.replace(/\\/g, '/');
+    // Convert path to ExtendScript format (forward slashes) and escape for JSX string
+    var jsxPresetPath = presetPath.replace(/\\/g, '/').replace(/'/g, "\\'");
 
     // Start UI
     transcribeBtn.classList.add('loading');
     transcribeBtn.disabled = true;
     errorContainer.classList.add('hidden');
-    
+
     setStatus("Exporting audio from sequence...", 10, false);
 
-    // Call ExtendScript to export audio
-    csInterface.evalScript('exportAudio("' + jsxPresetPath + '")', function(result) {
-        if (result.startsWith("ERROR:")) {
+    console.log("Calling exportAudio with preset: " + jsxPresetPath);
+
+    // Call ExtendScript to export audio (use single quotes to avoid issues with parentheses in path)
+    csInterface.evalScript("exportAudio('" + jsxPresetPath + "')", function (result) {
+        console.log("exportAudio result: " + result);
+
+        if (!result || result === 'undefined' || result === 'null' || result === 'EvalScript_Error') {
+            setError("ExtendScript error: no response from Premiere. Check the preset path and try again.\nPath: " + presetPath);
+            return;
+        }
+
+        if (result.indexOf("ERROR:") === 0) {
             setError(result);
             return;
         }
 
-        if (result.startsWith("SUCCESS:")) {
+        if (result.indexOf("SUCCESS:") === 0) {
             var audioPath = result.split("SUCCESS:")[1].trim();
             var winAudioPath = audioPath.replace(/\//g, '\\');
             if (winAudioPath.startsWith('\\c\\') || winAudioPath.startsWith('\\C\\')) {
                 winAudioPath = winAudioPath.substring(1, 2) + ":" + winAudioPath.substring(2);
             }
-            
+
             setStatus("Exporting audio via Adobe Media Encoder...", 20, true);
-            
+
             // Wait for AME to finish writing the file
-            waitForAudio(winAudioPath, function() {
+            waitForAudio(winAudioPath, function () {
                 runWhisper(winAudioPath);
             });
         }
@@ -197,7 +206,7 @@ transcribeBtn.addEventListener('click', function() {
 function waitForAudio(audioPath, callback) {
     var retries = 0;
     var lastSize = -1;
-    var checkInterval = setInterval(function() {
+    var checkInterval = setInterval(function () {
         if (fs.existsSync(audioPath)) {
             var stats = fs.statSync(audioPath);
             if (stats.size > 0 && stats.size === lastSize) {
@@ -228,12 +237,12 @@ function runWhisper(winAudioPath) {
     if (lang) {
         args.push('--language', lang);
     }
-    
+
     var maxWords = parseInt(maxWordsInput.value);
     if (!isNaN(maxWords) && maxWords > 0) {
         args.push('--max-words', maxWords.toString());
     }
-    
+
     if (highlightCheckbox.checked) {
         args.push('--highlight-color', highlightColor.value);
     }
@@ -252,46 +261,46 @@ function runWhisper(winAudioPath) {
     var pythonProcess = cp.spawn(pythonExecutable, args);
     var errorOutput = "";
 
-    pythonProcess.on('error', function(err) {
+    pythonProcess.on('error', function (err) {
         errorOutput += "Spawn error: " + err.toString() + "\n";
     });
 
-    pythonProcess.stdout.on('data', function(data) {
+    pythonProcess.stdout.on('data', function (data) {
         console.log("Whisper Output: " + data.toString());
         errorOutput += data.toString();
     });
 
-    pythonProcess.stderr.on('data', function(data) {
+    pythonProcess.stderr.on('data', function (data) {
         console.log("Whisper Error: " + data.toString());
         errorOutput += data.toString();
     });
 
-    pythonProcess.on('close', function(code) {
+    pythonProcess.on('close', function (code) {
         if (code !== 0) {
             setError("Whisper failed. Check if python and openai-whisper are installed.\nError: " + errorOutput);
             return;
         }
 
         setStatus("Transcription complete. Importing SRT...", 90, false);
-        
+
         // Import SRT back into Premiere
         var srtPath = winAudioPath.substring(0, winAudioPath.lastIndexOf('.')) + ".srt";
         var jsxSrtPath = srtPath.replace(/\\/g, '/');
 
-        csInterface.evalScript('importSRT("' + jsxSrtPath + '")', function(result) {
+        csInterface.evalScript('importSRT("' + jsxSrtPath + '")', function (result) {
             if (result.startsWith("ERROR:")) {
                 setError(result);
             } else {
                 setStatus("Done! SRT imported to Project Bin.", 100, false);
-                
+
                 // Cleanup temp audio
                 try {
                     fs.unlinkSync(winAudioPath);
-                } catch(e) {
+                } catch (e) {
                     console.log("Could not delete temp audio: " + e);
                 }
             }
-            
+
             // Reset button
             transcribeBtn.classList.remove('loading');
             transcribeBtn.disabled = false;
