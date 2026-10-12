@@ -17,8 +17,12 @@ var browsePresetBtn = document.getElementById('browsePresetBtn');
 // Bundled preset path – resolves automatically so the user never has to pick it
 var bundledPresetPath = path.join(extensionPath, 'whisper-preset.epr');
 
-// File-based color persistence
-var colorFilePath = path.join(extensionPath, 'last_used_color.json');
+// File-based color persistence (use __dirname for reliable Node.js path)
+var colorFilePath = path.resolve(__dirname, '..', 'last_used_color.json');
+
+console.log('[WhisperAuto] colorFilePath: ' + colorFilePath);
+console.log('[WhisperAuto] colorFile exists: ' + fs.existsSync(colorFilePath));
+
 var statusContainer = document.getElementById('statusContainer');
 var progressBar = document.getElementById('progressBar');
 var statusText = document.getElementById('statusText');
@@ -54,19 +58,22 @@ window.onload = function () {
 
 function loadColorFromFile() {
     try {
+        console.log('[WhisperAuto] Loading color from: ' + colorFilePath);
         if (fs.existsSync(colorFilePath)) {
             var raw = fs.readFileSync(colorFilePath, 'utf8');
+            console.log('[WhisperAuto] Color file raw content: "' + raw + '"');
             if (raw && raw.trim()) {
                 var data = JSON.parse(raw);
                 if (data.color) {
                     highlightColor.value = data.color;
                     colorHex.innerText = data.color;
+                    console.log('[WhisperAuto] Loaded color: ' + data.color);
                     return data.color;
                 }
             }
         }
     } catch (e) {
-        console.log('Could not load color from file: ' + e);
+        console.log('[WhisperAuto] Could not load color from file: ' + e);
     }
     return null;
 }
@@ -74,8 +81,9 @@ function loadColorFromFile() {
 function saveColorToFile(color) {
     try {
         fs.writeFileSync(colorFilePath, JSON.stringify({ color: color }, null, 2), 'utf8');
+        console.log('[WhisperAuto] Saved color to file: ' + color);
     } catch (e) {
-        console.log('Could not save color to file: ' + e);
+        console.log('[WhisperAuto] Could not save color to file: ' + e);
     }
 }
 
