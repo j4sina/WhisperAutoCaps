@@ -13,6 +13,12 @@ var modelSelect = document.getElementById('modelSelect');
 var languageSelect = document.getElementById('languageSelect');
 var presetPathInput = document.getElementById('presetPath');
 var browsePresetBtn = document.getElementById('browsePresetBtn');
+
+// Bundled preset path – resolves automatically so the user never has to pick it
+var bundledPresetPath = path.join(extensionPath, 'whisper-preset.epr');
+
+// File-based color persistence
+var colorFilePath = path.join(extensionPath, 'last_used_color.json');
 var statusContainer = document.getElementById('statusContainer');
 var progressBar = document.getElementById('progressBar');
 var statusText = document.getElementById('statusText');
@@ -28,12 +34,50 @@ var colorHex = document.getElementById('colorHex');
 // Setup
 window.onload = function() {
     loadSettings();
+
+    // Auto-fill preset path with bundled preset (user never needs to touch this)
+    if (!presetPathInput.value || !fs.existsSync(presetPathInput.value)) {
+        presetPathInput.value = bundledPresetPath;
+        saveSettings();
+    }
+
+    // Hide the preset picker section – it's no longer needed
+    var presetGroup = presetPathInput.closest('.input-group');
+    if (presetGroup) presetGroup.style.display = 'none';
     
-    // Color picker sync
+    // Color picker sync + save to file on every change
     highlightColor.addEventListener('input', function() {
         colorHex.innerText = highlightColor.value;
+        saveColorToFile(highlightColor.value);
     });
 };
+
+function loadColorFromFile() {
+    try {
+        if (fs.existsSync(colorFilePath)) {
+            var raw = fs.readFileSync(colorFilePath, 'utf8');
+            if (raw && raw.trim()) {
+                var data = JSON.parse(raw);
+                if (data.color) {
+                    highlightColor.value = data.color;
+                    colorHex.innerText = data.color;
+                    return data.color;
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Could not load color from file: ' + e);
+    }
+    return null;
+}
+
+function saveColorToFile(color) {
+    try {
+        fs.writeFileSync(colorFilePath, JSON.stringify({ color: color }, null, 2), 'utf8');
+    } catch (e) {
+        console.log('Could not save color to file: ' + e);
+    }
+}
 
 function loadSettings() {
     var savedPreset = localStorage.getItem('whisperauto_preset');
@@ -47,10 +91,14 @@ function loadSettings() {
     var savedHighlight = localStorage.getItem('whisperauto_highlight');
     if (savedHighlight !== null) highlightCheckbox.checked = savedHighlight === 'true';
     
-    var savedColor = localStorage.getItem('whisperauto_color');
-    if (savedColor) {
-        highlightColor.value = savedColor;
-        colorHex.innerText = savedColor;
+    // Color: prefer file-based persistence, then localStorage fallback
+    var fileColor = loadColorFromFile();
+    if (!fileColor) {
+        var savedColor = localStorage.getItem('whisperauto_color');
+        if (savedColor) {
+            highlightColor.value = savedColor;
+            colorHex.innerText = savedColor;
+        }
     }
 }
 
@@ -59,6 +107,7 @@ function saveSettings() {
     localStorage.setItem('whisperauto_maxwords', maxWordsInput.value);
     localStorage.setItem('whisperauto_highlight', highlightCheckbox.checked);
     localStorage.setItem('whisperauto_color', highlightColor.value);
+    saveColorToFile(highlightColor.value);
 }
 
 // UI Helpers
@@ -103,10 +152,11 @@ browsePresetBtn.addEventListener('click', function() {
 });
 
 transcribeBtn.addEventListener('click', function() {
-    var presetPath = presetPathInput.value;
+    // Always prefer the bundled preset; fall back to user-selected path
+    var presetPath = (fs.existsSync(bundledPresetPath)) ? bundledPresetPath : presetPathInput.value;
     
     if (!presetPath) {
-        setError("Please select an Adobe Media Encoder preset (.epr) first.");
+        setError("Preset file not found. Reinstall the extension.");
         return;
     }
 

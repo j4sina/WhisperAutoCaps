@@ -28,26 +28,10 @@ function exportAudio(presetPath) {
         var audioName = "whisper_temp_audio_" + new Date().getTime() + ".wav";
         var outPath = desktopFolder + "/" + audioName;
 
-        // Try to find standard system WAV presets instead of relying on custom user preset
-        var systemPresets = [
-            "C:/Program Files/Adobe/Adobe Premiere Pro 2026/Settings/EncoderPresets/Wave48mono16.epr",
-            "C:/Program Files/Adobe/Adobe Premiere Pro 2026/Settings/EncoderPresets/Wave48mono24.epr",
-            "C:/Program Files/Adobe/Adobe Premiere Pro 2026/MediaIO/systempresets/3F3F3F3F_57415645/Waveform Audio 48kHz 16-bit.epr",
-            presetPath // fallback to user preset
-        ];
-
-        var finalPresetPath = presetPath;
-        for (var i = 0; i < systemPresets.length; i++) {
-            var f = new File(systemPresets[i]);
-            if (f.exists) {
-                finalPresetPath = f.fsName;
-                break;
-            }
-        }
-
-        var presetFile = new File(finalPresetPath);
+        // Use the bundled preset passed from the CEP panel
+        var presetFile = new File(presetPath);
         if (!presetFile.exists) {
-            return "ERROR: Preset file does not exist at " + finalPresetPath;
+            return "ERROR: Preset file does not exist at " + presetPath;
         }
 
         // Ensure AME is running before attempting to queue
